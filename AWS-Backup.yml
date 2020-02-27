@@ -1,0 +1,245 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: "Backup Plan template to back up all resources tagged with backup=daily daily at the specified time in UTC."
+#====================================================================================================
+#                                             Parameters
+#====================================================================================================
+Parameters:
+  #--------------------------------------------------------------------------------------------------
+  DailyTargetTag:
+    Default: daily_backup
+    Description: EBS Volumes with a tag of 'TargetTagName' == 'TargetTagValue' will be snapshotted in accordance with this policy
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  DailyTargetValue:
+    Default: true
+    Description: EBS Volumes with a tag of 'TargetTagName' == 'TargetTagValue' will be snapshotted in accordance with this policy
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  DailySchedule:
+    Default: cron(0 0 * * ? *)
+    Description: Schedule Interval of the backup jobs. Time is in GMT.
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  DailyRetention:
+    Default: 30
+    Description: Retention of backups in the AWS Backup Vault
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  WeeklyTargetTag:
+    Default: weekly_backup
+    Description: EBS Volumes with a tag of 'TargetTagName' == 'TargetTagValue' will be snapshotted in accordance with this policy
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  WeeklyTargetValue:
+    Default: true
+    Description: EBS Volumes with a tag of 'TargetTagName' == 'TargetT`agValue' will be snapshotted in accordance with this policy
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  WeeklySchedule:
+    Default: cron(0 0 ? * SUN *)
+    Description: Schedule Interval of the backup jobs. Time is in GMT.
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  WeeklyRetention:
+    Default: 42
+    Description: Retention of backups in the AWS Backup Vault
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  MonthlyTargetTag:
+    Default: monthly_backup
+    Description: EBS Volumes with a tag of 'TargetTagName' == 'TargetTagValue' will be snapshotted in accordance with this policy
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  MonthlyTargetValue:
+    Default: true
+    Description: EBS Volumes with a tag of 'TargetTagName' == 'TargetTagValue' will be snapshotted in accordance with this policy
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  MonthlySchedule:
+    Default: cron(0 0 ? * 1#1 *)
+    Description: Schedule Interval of the backup jobs. Time is in GMT.
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  MonthlyRetention:
+    Default: 395
+    Description: Retention of backups in the AWS Backup Vault
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  YearlyTargetTag:
+    Default: yearly_backup
+    Description: EBS Volumes with a tag of 'TargetTagName' == 'TargetTagValue' will be snapshotted in accordance with this policy
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  YearlyTargetValue:
+    Default: true
+    Description: EBS Volumes with a tag of 'TargetTagName' == 'TargetTagValue' will be snapshotted in accordance with this policy
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  YearlySchedule:
+    Default: cron(0 0 1 1 ? *)
+    Description: Schedule Interval of the backup jobs. Time is in GMT.
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  YearlyRetention:
+    Default: 2555
+    Description: Retention of backups in the AWS Backup Vault
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+
+#====================================================================================================
+#                                              Resources
+#====================================================================================================
+Resources:
+#--------------------------------------------------------------------------------------------------
+  BackupRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+     AssumeRolePolicyDocument:
+       Version: "2012-10-17"
+       Statement:
+         -
+          Effect: "Allow"
+          Principal:
+            Service:
+              - "backup.amazonaws.com"
+          Action:
+            - "sts:AssumeRole"
+     ManagedPolicyArns:
+       -
+        "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup"
+  #--------------------------------------------------------------------------------------------------
+  BackupKMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: "Backup Encryption Key"
+      EnableKeyRotation: True
+      Enabled: True
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: Allow
+          Principal:
+            "AWS": { "Fn::Sub": "arn:${AWS::Partition}:iam::${AWS::AccountId}:root" }
+          Action:
+          - kms:*
+          Resource: "*"
+  #--------------------------------------------------------------------------------------------------
+  BackupVault:
+    Type: "AWS::Backup::BackupVault"
+    Properties:
+      BackupVaultName: "BackupVault"
+      EncryptionKeyArn: !GetAtt BackupKMSKey.Arn
+  #--------------------------------------------------------------------------------------------------
+  DailyBackupPlan:
+    Type: "AWS::Backup::BackupPlan"
+    DependsOn: BackupVault
+    Properties:
+      BackupPlan:
+        BackupPlanName: "DailyBackupPlan"
+        BackupPlanRule:
+          -
+            RuleName: "RuleForDailyBackups"
+            TargetBackupVault: !Ref BackupVault
+            ScheduleExpression: !Ref DailySchedule
+            Lifecycle:
+              DeleteAfterDays: !Ref DailyRetention
+  #--------------------------------------------------------------------------------------------------
+  DailyBackupSelection:
+    Type: "AWS::Backup::BackupSelection"
+    Properties:
+      BackupSelection:
+        SelectionName: "DailyBackupSelection"
+        IamRoleArn: !GetAtt BackupRole.Arn
+        ListOfTags:
+         -
+           ConditionType: "STRINGEQUALS"
+           ConditionKey: !Ref DailyTargetTag
+           ConditionValue: !Ref DailyTargetValue
+      BackupPlanId: !Ref DailyBackupPlan
+    DependsOn: DailyBackupPlan       
+  #--------------------------------------------------------------------------------------------------
+  WeeklyBackupPlan:
+    Type: "AWS::Backup::BackupPlan"
+    DependsOn: BackupVault
+    Properties:
+      BackupPlan:
+        BackupPlanName: "WeeklyBackupPlan"
+        BackupPlanRule:
+          -
+            RuleName: "RuleForWeeklyBackups"
+            TargetBackupVault: !Ref BackupVault
+            ScheduleExpression: !Ref WeeklySchedule
+            Lifecycle:
+              DeleteAfterDays: !Ref WeeklyRetention
+  #--------------------------------------------------------------------------------------------------
+  WeeklyBackupSelection:
+    Type: "AWS::Backup::BackupSelection"
+    Properties:
+      BackupSelection:
+        SelectionName: "WeeklyBackupSelection"
+        IamRoleArn: !GetAtt BackupRole.Arn
+        ListOfTags:
+         -
+           ConditionType: "STRINGEQUALS"
+           ConditionKey: !Ref WeeklyTargetTag
+           ConditionValue: !Ref WeeklyTargetValue
+      BackupPlanId: !Ref WeeklyBackupPlan
+    DependsOn: WeeklyBackupPlan       
+  #--------------------------------------------------------------------------------------------------
+  MonthlyBackupPlan:
+    Type: "AWS::Backup::BackupPlan"
+    DependsOn: BackupVault
+    Properties:
+      BackupPlan:
+        BackupPlanName: "MonthlyBackupPlan"
+        BackupPlanRule:
+          -
+            RuleName: "RuleForMonthlyBackups"
+            TargetBackupVault: !Ref BackupVault
+            ScheduleExpression: !Ref MonthlySchedule
+            Lifecycle:
+              DeleteAfterDays: !Ref MonthlyRetention
+  #--------------------------------------------------------------------------------------------------
+  MonthlyBackupSelection:
+    Type: "AWS::Backup::BackupSelection"
+    Properties:
+      BackupSelection:
+        SelectionName: "MonthlyBackupSelection"
+        IamRoleArn: !GetAtt BackupRole.Arn
+        ListOfTags:
+         -
+           ConditionType: "STRINGEQUALS"
+           ConditionKey: !Ref MonthlyTargetTag
+           ConditionValue: !Ref MonthlyTargetValue
+      BackupPlanId: !Ref MonthlyBackupPlan
+    DependsOn: MonthlyBackupPlan       
+  #--------------------------------------------------------------------------------------------------
+  YearlyBackupPlan:
+    Type: "AWS::Backup::BackupPlan"
+    DependsOn: BackupVault
+    Properties:
+      BackupPlan:
+        BackupPlanName: "YearlyBackupPlan"
+        BackupPlanRule:
+          -
+            RuleName: "RuleForYearlyBackups"
+            TargetBackupVault: !Ref BackupVault
+            ScheduleExpression: !Ref YearlySchedule
+            Lifecycle:
+              DeleteAfterDays: !Ref YearlyRetention
+  #--------------------------------------------------------------------------------------------------
+  YearlyBackupSelection:
+    Type: "AWS::Backup::BackupSelection"
+    Properties:
+      BackupSelection:
+        SelectionName: "YearlyBackupSelection"
+        IamRoleArn: !GetAtt BackupRole.Arn
+        ListOfTags:
+         -
+           ConditionType: "STRINGEQUALS"
+           ConditionKey: !Ref YearlyTargetTag
+           ConditionValue: !Ref YearlyTargetValue
+      BackupPlanId: !Ref YearlyBackupPlan
+    DependsOn: YearlyBackupPlan      
+  #--------------------------------------------------------------------------------------------------

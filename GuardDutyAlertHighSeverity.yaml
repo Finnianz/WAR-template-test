@@ -1,0 +1,113 @@
+---
+#====================================================================================================
+# Description : Configure GuardDuty to Send alerts to an SNS topic
+# Author      : Finnian Dempsey (Itoc)
+# Date        : 06/02/2020
+# Version     : 1.0.0
+#====================================================================================================
+AWSTemplateFormatVersion: 2010-09-09
+Description: Configures GuardDuty to Send High Severity findings to an SNS topic
+#====================================================================================================
+#                                             Parameters
+#====================================================================================================
+Parameters:
+  #--------------------------------------------------------------------------------------------------
+  GuardDutyEmailAddress:
+    Type: String
+    Default: 'support+guardduty+high@itoc.com.au'
+    Description: Enter the email address that will receive the GuardDuty alerts
+  #--------------------------------------------------------------------------------------------------
+  CustomerCompanyName:
+    Type: String
+    Description: Customer Company Name
+#====================================================================================================
+#                                             Resources
+#====================================================================================================
+Resources:
+  #--------------------------------------------------------------------------------------------------
+  GuardDutySNSTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      TopicName: GuardDuty-High-Severity-Alerts-Email
+  #-------------------------------------------------------------------------------------------------- 
+  GuardDutySNSTopicPolicy:
+    Type: 'AWS::SNS::TopicPolicy'
+    Properties:
+      Topics: 
+        - !Ref GuardDutySNSTopic
+      PolicyDocument: {
+          "Version": "2008-10-17",
+          "Id": "__default_policy_ID",
+          "Statement": [
+            {
+              "Sid": "__default_statement_ID",
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": "*"
+              },
+              "Action": [
+                "SNS:GetTopicAttributes",
+                "SNS:SetTopicAttributes",
+                "SNS:AddPermission",
+                "SNS:RemovePermission",
+                "SNS:DeleteTopic",
+                "SNS:Subscribe",
+                "SNS:ListSubscriptionsByTopic",
+                "SNS:Publish",
+                "SNS:Receive"
+              ],
+              "Resource": { "Ref": "GuardDutySNSTopic" },
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceOwner": { "Ref": "AWS::AccountId" }
+                }
+              }
+            },
+            {
+              "Sid": "TrustCWEToPublishEventsToMyTopic",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "events.amazonaws.com"
+              },
+              "Action": "sns:Publish",
+              "Resource": { "Ref": "GuardDutySNSTopic" }
+            }
+          ]
+        }
+  #------------------------------------------------------------------------------------------------        
+  GuardDutySNSSubscription:
+    Type: 'AWS::SNS::Subscription'
+    Properties:
+      Endpoint: !Ref GuardDutyEmailAddress
+      Protocol: email
+      TopicArn: !Ref GuardDutySNSTopic
+#--------------------------------------------------------------------------------------------------
+  GuardDutyCloudWatchEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: CloudWatch Rule to send email if GuardDuty has a finding
+      EventPattern: 
+        "{\"source\":[\"aws.guardduty\"],\"detail-type\":[\"GuardDuty Finding\"],\"detail\":{\"severity\":[7,7.0,7.1,7.2,7.3,7.4,7.5,7.6,7.7,7.8,7.9,8,8.0,8.1,8.2,8.3,8.4,8.5,8.6,8.7,8.8,8.9]}}"
+      Name: GuardDutyAlertHighSeverity
+      State: ENABLED
+      Targets:
+      - Arn: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:GuardDuty-High-Severity-Alerts-Email      
+        Id: SNStarget-cloudwatch-event
+        InputTransformer:
+          InputPathsMap: 
+              {
+              "account": "$.account",
+              "eventFirstSeen": "$.detail.service.eventFirstSeen",
+              "eventLastSeen": "$.detail.service.eventLastSeen",
+              "count": "$.detail.service.count",
+              "Finding_Type": "$.detail.type",
+              "region": "$.region",
+              "Finding_description": "$.detail.description"
+              }
+          InputTemplate: !Sub |
+            "Guard Duty Alert - High Severity. Customer: ${CustomerCompanyName}, Account Id: <account>"
+            "You have a GuardDuty Finding Type: <Finding_Type> in the Region: <region>" 
+            "Description: <Finding_description>."
+            "The first attempt was on <eventFirstSeen> and the most recent attempt on <eventLastSeen>."
+            "The total occurrence is <count>."
+#--------------------------------------------------------------------------------------------------

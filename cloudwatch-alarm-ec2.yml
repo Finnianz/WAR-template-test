@@ -1,0 +1,86 @@
+---
+#====================================================================================================
+# Description : Creates Standard Cloudwatch Alarms for an Ec2 instance, subscibes to the SNS topic created in the cloudwatch-alarm-topic template
+# Author      : Finnian Dempsey
+# Date        : 29-01-2020
+# Version     : 1.0.0
+#====================================================================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Creates Standard Cloudwatch Alarms for an Ec2 instance'
+#====================================================================================================
+#                                             Parameters
+#====================================================================================================
+Parameters:
+  #--------------------------------------------------------------------------------------------------
+  InstanceID:
+    Description: Id of the EC2 instance to create the alarms for.
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  TopicName:
+    Description: Name of the SNS topic to subscibe to.
+    Type: String
+    Default: CloudWatch-Alarm-Topic
+  #--------------------------------------------------------------------------------------------------
+  CPUThreshold:
+    Description: Percent of used CPU to Alert on.
+    Type: String
+    Default: '90'
+  #--------------------------------------------------------------------------------------------------
+  CPUAlertPeriod:
+    Description: Length of time to evaluate the metric. It is expressed in seconds. Recommended multiples of 60.
+    Type: String
+    Default: '60'
+  #--------------------------------------------------------------------------------------------------
+  CPUAlertEvalPeriod:
+    Description: Number of the most recent data points to evaluate when determining CPU alarm state.
+    Type: String
+    Default: '3'
+
+  StatusAlertPeriod:
+    Description: Length of time to evaluate the metric. It is expressed in seconds. Recommended multiples of 60.
+    Type: String
+    Default: '60'
+  #--------------------------------------------------------------------------------------------------  
+  StatusAlertEvalPeriod:
+    Description: Number of the most recent data points to evaluate when determining Status alarm state.
+    Type: String
+    Default: '5'
+
+#====================================================================================================
+#                                              Resources
+#====================================================================================================    
+Resources:
+  #--------------------------------------------------------------------------------------------------
+  CPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for an Ec2 instance
+      AlarmActions: 
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${TopicName}"
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average
+      Period: !Ref CPUAlertPeriod
+      EvaluationPeriods: !Ref CPUAlertEvalPeriod
+      Threshold: !Ref CPUThreshold
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref InstanceID
+  #--------------------------------------------------------------------------------------------------
+  StatusCheckAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Status Check failed alarm for an Ec2 instance
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${TopicName}"
+      MetricName: StatusCheckFailed
+      Statistic: Minimum
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: '0' 
+      Namespace: AWS/EC2
+      Period: !Ref StatusAlertPeriod
+      EvaluationPeriods: !Ref StatusAlertEvalPeriod
+      Dimensions:
+      - Name: InstanceId
+        Value: !Ref InstanceID

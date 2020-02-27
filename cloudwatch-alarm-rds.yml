@@ -1,0 +1,94 @@
+---
+#====================================================================================================
+# Description : Creates Standard Cloudwatch Alarms for an RDS instance and subscribes to the SNS topic created in the cloudwatch-alarm-topic.yml template
+# Author      : Finnian Dempsey
+# Date        : 30-01-2020
+# Version     : 1.0.0
+#====================================================================================================
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Creates Standard Cloudwatch Alarms for an RDS instance'
+#====================================================================================================
+#                                             Parameters
+#====================================================================================================
+Parameters:
+  #--------------------------------------------------------------------------------------------------
+  DBIdentifier:
+    Description: Name of the RDS instance to create the alarms for.
+    Type: String
+  #--------------------------------------------------------------------------------------------------
+  TopicName:
+    Description: Name of the SNS topic to subscribe to.
+    Type: String
+    Default: CloudWatch-Alarm-Topic
+  #--------------------------------------------------------------------------------------------------
+  CPUThreshold:
+    Description: Percent of CPU to Alert on.
+    Type: String
+    Default: '80'
+  #--------------------------------------------------------------------------------------------------
+  CPUAlertPeriod:
+    Description: Length of time to evaluate the metric. It is expressed in seconds. Recommended multiples of 60.
+    Type: String
+    Default: '300'
+  #--------------------------------------------------------------------------------------------------
+  CPUAlertEvalPeriod:
+    Description: Number of the most recent data points to evaluate when determining CPU alarm state.
+    Type: String
+    Default: '2'
+  #--------------------------------------------------------------------------------------------------  
+  MemoryThreshold:
+    Description: Bytes of Freeable Memory to Alert on -  Default 700MB.
+    Type: String
+    Default: '700000000'
+  #--------------------------------------------------------------------------------------------------
+  MemoryAlertPeriod:
+    Description: Length of time to evaluate the metric. It is expressed in seconds. Recommended multiples of 60.
+    Type: String
+    Default: '300'
+  #--------------------------------------------------------------------------------------------------
+  MemoryAlertEvalPeriod:
+    Description: Number of the most recent data points to evaluate when determining Memory alarm state.
+    Type: String
+    Default: '2'
+
+
+#====================================================================================================
+#                                              Resources
+#====================================================================================================    
+Resources:
+  #--------------------------------------------------------------------------------------------------
+  CPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: CPU alarm for an RDS instance
+      AlarmActions: 
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${TopicName}"
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Unit: Percent
+      Statistic: Average
+      Period: !Ref CPUAlertPeriod
+      EvaluationPeriods: !Ref CPUAlertEvalPeriod
+      Threshold: !Ref CPUThreshold
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: !Ref DBIdentifier
+  #--------------------------------------------------------------------------------------------------
+  MemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Memory Alarm for an RDS Instance
+      AlarmActions:
+        - !Sub "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${TopicName}"
+      MetricName: FreeableMemory
+      Namespace: AWS/RDS
+      Unit: Bytes
+      Statistic: Average
+      Period: !Ref MemoryAlertPeriod
+      EvaluationPeriods: !Ref MemoryAlertEvalPeriod
+      Threshold: !Ref MemoryThreshold
+      ComparisonOperator: LessThanOrEqualToThreshold
+      Dimensions:
+      - Name: DBInstanceIdentifier
+        Value: !Ref DBIdentifier
