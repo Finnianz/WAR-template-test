@@ -1,0 +1,18 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Enables the CloudTrail service'
+Parameters:
+  CloudTrailBucket:
+    Description: Name of destination bucket
+    Type: String
+    Default: s3-acmecorp-cloudtrail
+Resources:
+  CloudTrail:
+    Type: "AWS::CloudTrail::Trail"
+    Properties:
+      EnableLogFileValidation: true
+      IncludeGlobalServiceEvents: true
+      IsLogging: true
+      IsMultiRegionTrail: true
+      S3BucketName: !Sub "${CloudTrailBucket}-${AWS::Region}"
+      S3KeyPrefix: "cloudtrail"
